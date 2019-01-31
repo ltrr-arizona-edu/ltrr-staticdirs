@@ -1,0 +1,8 @@
+{
+  "name": "dirindex",
+  "version": "1.0.0",
+  "description": "Directory Indexer",
+  "main": "indexer.js",
+  "license": "MIT",
+  "private": false
+}
