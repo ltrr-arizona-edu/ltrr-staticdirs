@@ -26,7 +26,7 @@ function mappeddir (root, dirname, parents, siblings, indent) {
     return entries.map(entryformat)
   })
   .then(dirlist => Promise.all(dirlist))
-  .then(subtree => [`${paddedname(dirname, indent)}/ ${parents.join(' --> ')} ${siblings.toString}`].concat(subtree).join("\n"))
+  .then(subtree => [`${paddedname(dirname, indent)}/ ${parents.join(' --> ')} ${siblings.toString()}`].concat(subtree).join("\n"))
   .catch(errmes => console.log(errmes));
 }
 
