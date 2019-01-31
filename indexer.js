@@ -21,7 +21,7 @@ function mappeddir (root, dirname, parents, siblings, indent) {
   const nextindent = indent + 2;
   return fsPromises.readdir(nextroot, { withFileTypes: true })
   .then(entries => {
-    const nextsiblings = entries.map(entry => entry.name);
+    const nextsiblings = entries.filter(entry => entry.isDirectory()).map(direntry => direntry.name);
     const entryformat = formatentry(nextroot, nextparents, nextsiblings, nextindent);
     return entries.map(entryformat)
   })
