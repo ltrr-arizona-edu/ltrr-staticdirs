@@ -1,5 +1,6 @@
 # Test Files
 backstop_data
+home/
 
 # Gulp Build Generated Files
 src/img/*.svg
