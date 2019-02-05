@@ -25,8 +25,8 @@ const dirProcessor = function directoryTreeProcessor (srcRoot) {
     return fsPromises.readdir(subTree, { withFileTypes: true })
     .then(entries => {
       const nextSiblings = entries.filter(entry => entry.isDirectory()).map(dirEntry => dirEntry.name);
-      const formattedEntry = entryProcessor(nextParents, nextSiblings, nextIndent);
-      return entries.map(formattedEntry)
+      const processedEntry = entryProcessor(nextParents, nextSiblings, nextIndent);
+      return entries.map(processedEntry)
     })
     .then(dirList => Promise.all(dirList))
     .then(resolvedTree => {
