@@ -1,4 +1,3 @@
-
 "use strict";
 
 const fsPromises = require("fs").promises;
@@ -7,7 +6,7 @@ const paddedName = function whiteSpacePaddedName (name, indent) {
   return ' '.repeat(indent) + name;
 }
 
-const entryFormatter = function directoryEntryFormatter (parents, siblings, indent) {
+const entryProcessor = function directoryEntryProcessor (parents, siblings, indent) {
   return (entry) => {
     if (entry.isFile()) {
       return paddedName(entry.name, indent);
@@ -26,7 +25,7 @@ const dirProcessor = function directoryTreeProcessor (srcRoot) {
     return fsPromises.readdir(subTree, { withFileTypes: true })
     .then(entries => {
       const nextSiblings = entries.filter(entry => entry.isDirectory()).map(dirEntry => dirEntry.name);
-      const formattedEntry = entryFormatter(nextParents, nextSiblings, nextIndent);
+      const formattedEntry = entryProcessor(nextParents, nextSiblings, nextIndent);
       return entries.map(formattedEntry)
     })
     .then(dirList => Promise.all(dirList))
