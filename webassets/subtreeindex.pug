@@ -1,0 +1,14 @@
+doctype html
+  head
+    include /webassets/commonhead.pug
+    title dirname
+  body
+    div#main(role='main')
+      include /webassets/breadcrumbbar.pug
+      .container
+        .row
+          #content.col-md-9.col-md-push-3
+            .page-header
+              h1 dirname
+          aside.col-md-3.col-md-pull-9(role='complementary')
+    include /webassets/commonfoot.pug

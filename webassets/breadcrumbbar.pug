@@ -1,0 +1,9 @@
+.container
+  .row
+    div.col-xs-12(aria-label='breadcrumb')
+      .item-list
+        ol.breadcrumb
+          each crumb, path in parents
+            li
+              a(href=path) crumb
+          li.active dirname    

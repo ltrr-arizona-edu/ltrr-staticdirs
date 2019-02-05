@@ -1,36 +1,42 @@
+
+"use strict";
+
 const fsPromises = require("fs").promises;
 
-function paddedname (name, indent) {
+const paddedName = function whiteSpacePaddedName (name, indent) {
   return ' '.repeat(indent) + name;
 }
 
-function formatentry (root, parents, siblings, indent) {
+const entryFormatter = function directoryEntryFormatter (parents, siblings, indent) {
   return (entry) => {
     if (entry.isFile()) {
-      return paddedname(entry.name, indent);
+      return paddedName(entry.name, indent);
     }
     if (entry.isDirectory()) {
-      return mappeddir(root, entry.name, parents, siblings, indent);
+      return processedDir(entry.name, parents, siblings, indent);
     }
   }
 }
 
-function mappeddir (root, dirname, parents, siblings, indent) {
-  const nextroot = `${root}/${dirname}`;
-  const nextparents = parents.concat([dirname]);
-  const nextindent = indent + 2;
-  return fsPromises.readdir(nextroot, { withFileTypes: true })
-  .then(entries => {
-    const nextsiblings = entries.filter(entry => entry.isDirectory()).map(direntry => direntry.name);
-    const entryformat = formatentry(nextroot, nextparents, nextsiblings, nextindent);
-    return entries.map(entryformat)
-  })
-  .then(dirlist => Promise.all(dirlist))
-  .then(subtree => {
-    const dirheader = `${paddedname(dirname, indent)}/ ${parents.join(' --> ')} | [${siblings.join(', ')}]`;
-    return [dirheader].concat(subtree).join("\n")
-  })
-  .catch(errmes => console.log(errmes));
+const dirProcessor = function directoryTreeProcessor (srcRoot) {
+  return (dirName, parents, siblings, indent) => {
+    const nextParents = parents.concat([dirName]);
+    const nextIndent = indent + 2;
+    const subTree = [srcRoot].concat(nextParents).join('/');
+    return fsPromises.readdir(subTree, { withFileTypes: true })
+    .then(entries => {
+      const nextSiblings = entries.filter(entry => entry.isDirectory()).map(dirEntry => dirEntry.name);
+      const formattedEntry = entryFormatter(nextParents, nextSiblings, nextIndent);
+      return entries.map(formattedEntry)
+    })
+    .then(dirList => Promise.all(dirList))
+    .then(resolvedTree => {
+      const dirHeader = `${paddedName(dirName, indent)}/ ${parents.join(' --> ')} | [${siblings.join(', ')}]`;
+      return [dirHeader].concat(resolvedTree).join("\n")
+    })
+    .catch(errmes => console.log(errmes));
+  }
 }
 
-mappeddir('.', 'home', [], [], 0).then(dir => console.log(dir));
+const processedDir = dirProcessor('.')
+processedDir('home', [], [], 0).then(dir => console.log(dir));
