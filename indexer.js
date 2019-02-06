@@ -1,15 +1,29 @@
 "use strict";
 
 const fsPromises = require("fs").promises;
+const path = require("path");
+
+const indexName = 'index.html';
 
 const paddedName = function whiteSpacePaddedName (name, indent) {
   return ' '.repeat(indent) + name;
 }
 
-const entryProcessor = function directoryEntryProcessor (parents, siblings, indent) {
+const joinedPath = function pathStringFromJoinedArray (root, pathList) {
+  return (pathList).reduce(
+    (fullPath, currentDir) => path.join(fullPath, currentDir),
+    root
+  );
+}
+
+const entryProcessor = function directoryEntryProcessor (srcTree, dstTree, parents, siblings, indent) {
   return (entry) => {
+    if (entry.name === indexName) {
+      return '';
+    }
     if (entry.isFile()) {
-      return paddedName(entry.name, indent);
+      return fsPromises.symlink(path.join(srcTree, entry.name), path.join(dstTree, entry.name))
+      .then(() => paddedName(entry.name, indent));
     }
     if (entry.isDirectory()) {
       return processedDir(entry.name, parents, siblings, indent);
@@ -17,15 +31,17 @@ const entryProcessor = function directoryEntryProcessor (parents, siblings, inde
   }
 }
 
-const dirProcessor = function directoryTreeProcessor (srcRoot) {
+const dirProcessor = function directoryTreeProcessor (srcRoot, dstRoot) {
   return (dirName, parents, siblings, indent) => {
     const nextParents = parents.concat([dirName]);
     const nextIndent = indent + 2;
-    const subTree = [srcRoot].concat(nextParents).join('/');
-    return fsPromises.readdir(subTree, { withFileTypes: true })
+    const srcTree = joinedPath(srcRoot, nextParents);
+    const dstTree = joinedPath(dstRoot, nextParents);
+    return fsPromises.mkdir(dstTree, { mode: 0o755})
+    .then(() => fsPromises.readdir(srcTree, { withFileTypes: true }))
     .then(entries => {
       const nextSiblings = entries.filter(entry => entry.isDirectory()).map(dirEntry => dirEntry.name);
-      const processedEntry = entryProcessor(nextParents, nextSiblings, nextIndent);
+      const processedEntry = entryProcessor(srcTree, dstTree, nextParents, nextSiblings, nextIndent);
       return entries.map(processedEntry)
     })
     .then(dirList => Promise.all(dirList))
@@ -37,5 +53,5 @@ const dirProcessor = function directoryTreeProcessor (srcRoot) {
   }
 }
 
-const processedDir = dirProcessor('.')
+const processedDir = dirProcessor(path.resolve(), path.resolve('/tmp/dirindexdata'));
 processedDir('home', [], [], 0).then(dir => console.log(dir));
