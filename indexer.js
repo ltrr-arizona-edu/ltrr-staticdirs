@@ -18,7 +18,7 @@ const joinedPath = function pathStringFromJoinedArray (root, pathList) {
 
 const entryProcessor = function directoryEntryProcessor (srcTree, dstTree, parents, siblings, indent) {
   return (entry) => {
-    if (entry.name === indexName) {
+    if (encodeURIComponent(entry.name) === indexName) {
       return '';
     }
     if (entry.isFile()) {
@@ -28,21 +28,66 @@ const entryProcessor = function directoryEntryProcessor (srcTree, dstTree, paren
     if (entry.isDirectory()) {
       return processedDir(entry.name, parents, siblings, indent);
     }
+    throw `Cannot process ${entry.name} in ${srcTree}`
   }
 }
 
-const dirProcessor = function directoryTreeProcessor (srcRoot, dstRoot) {
+const webBreadcrumbs = function webBreadcrumbRefs (webRoot, parents) {
+  return parents.reduce(
+    (crumbs, dirName) => {
+      const encoded = encodeURIComponent(dirName);
+      if (crumbs.length === 0) {
+        const refBase = `${webRoot}/${encoded}`;
+        return [ { base: refBase, href: `${refBase}/${indexName}`, title: encoded } ];
+      }
+      const currentBase = `${crumbs[crumbs.length - 1].base}/${encoded}`;
+      return crumbs.concat([ { base: currentBase, href: `${currentBase}/${indexName}`, title: encoded } ]);
+    }, []
+  );
+}
+
+const webNavProcessor = function webNavRefProcessor (webContext, current) {
+  return (navName) => {
+    const encoded = encodeURIComponent(navName);
+    if (navName === current) {
+      return { href: '#', title: encoded, active: true };
+    }
+    return { href: `${webContext}/${encoded}`, title: encoded, active: false };
+  }
+}
+
+const webDirProcessor = function webDirRefProcessor (webTree) {
+  return (entry) => {
+    const encoded = encodeURIComponent(entry.name);
+    if (encoded === indexName) {
+      return { entryType: 'index' };
+    }
+    if (entry.isFile()) {
+      return { entryType: 'file', href: `${webTree}/${encoded}`, title: encoded };
+    }
+    if (entry.isDirectory()) {
+      return { entryType: 'dir', href: `${webTree}/${encoded}/${indexName}`, title: encoded };
+    }
+    throw `Cannot add ${entry.name} to ${webTree}`
+  }
+}
+
+const dirProcessor = function directoryTreeProcessor (srcRoot, dstRoot, webRoot) {
   return (dirName, parents, siblings, indent) => {
     const nextParents = parents.concat([dirName]);
     const nextIndent = indent + 2;
     const srcTree = joinedPath(srcRoot, nextParents);
     const dstTree = joinedPath(dstRoot, nextParents);
+    const webAbove = [webRoot].concat(parents.map(encodeURIComponent)).join('/');
+    const webTree = `${webAbove}/${encodeURIComponent(dirName)}`;
+    const navRefs = siblings.map(webNavProcessor(webAbove, dirName));
+    const breadcrumbRefs = webBreadcrumbs(webRoot, parents);
     return fsPromises.mkdir(dstTree, { mode: 0o755})
     .then(() => fsPromises.readdir(srcTree, { withFileTypes: true }))
     .then(entries => {
       const nextSiblings = entries.filter(entry => entry.isDirectory()).map(dirEntry => dirEntry.name);
-      const processedEntry = entryProcessor(srcTree, dstTree, nextParents, nextSiblings, nextIndent);
-      return entries.map(processedEntry)
+      const dirRefs = entries.map(webDirProcessor(webTree));
+      return entries.map(entryProcessor(srcTree, dstTree, nextParents, nextSiblings, nextIndent));
     })
     .then(dirList => Promise.all(dirList))
     .then(resolvedTree => {
@@ -53,5 +98,5 @@ const dirProcessor = function directoryTreeProcessor (srcRoot, dstRoot) {
   }
 }
 
-const processedDir = dirProcessor(path.resolve(), path.resolve('/tmp/dirindexdata'));
-processedDir('home', [], [], 0).then(dir => console.log(dir));
+const processedDir = dirProcessor(path.resolve(), path.resolve('/tmp/dirindexdata'), '');
+processedDir('home', [], [], 0).then(dirLog => console.log(dirLog));

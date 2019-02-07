@@ -1,0 +1,14 @@
+ul.media-list
+  each ref in dirRefs
+    li.media
+      case ref.type
+        when 'file'
+          .media-left
+            a(href=ref.href)
+              img(class='media-object', width=2rem, height=2rem, src='/dirindex_webfiles/file-solid-fontawesome.svg', alt='file')
+          .media-heading ref.title
+        when 'dir'
+          .media-left
+            a(href=ref.href)
+              img(class='media-object', width=2rem, height=2rem, src='/dirindex_webfiles/folder-solid-fontawesome.svg', alt='dir')
+          .media-heading ref.title
