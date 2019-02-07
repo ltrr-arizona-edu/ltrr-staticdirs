@@ -4,5 +4,8 @@
   "description": "Directory Indexer",
   "main": "indexer.js",
   "license": "MIT",
-  "private": false
+  "private": false,
+  "dependencies": {
+    "pug": "^2.0.3"
+  }
 }
