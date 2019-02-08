@@ -1,16 +1,17 @@
 doctype html
+html
   head
-    include /webassets/commonhead.pug
-    title dirName
+    include commonhead.pug
+    title #{webDirName}
   body
     div#main(role='main')
-      include /webassets/breadcrumbbar.pug
+      include breadcrumbbar.pug
       .container
         .row
           #content.col-md-9.col-md-push-3
             .page-header
-              h1 dirName
-            include /webassets/dirlist.pug
+              h1 #{webDirName}
+            include dirlist.pug
           aside.col-md-3.col-md-pull-9(role='complementary')
-            include /webassets/siblingnav.pug
-    include /webassets/commonfoot.pug
+            include siblingnav.pug
+    include commonfoot.pug

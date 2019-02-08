@@ -3,8 +3,8 @@ ul.media-list
     li.media
       .media-left
       if ref.active
-        img(class='media-object', width=2rem, height=2rem, src='/dirindex_webfiles/folder-open-solid-fontawesome.svg', alt='current dir')
+        img(class='media-object', width=widthFileIcon, height=heightFileIcon, src=`${images}/folder-open-solid-fontawesome.svg`, alt='current dir')
       else
         a(href=ref.href)
-          img(class='media-object', width=2rem, height=2rem, src='/dirindex_webfiles/folder-solid-fontawesome.svg', alt='dir')
-      .media-heading ref.title
+          img(class='media-object', width=widthFileIcon, height=heightFileIcon, src=`${images}/folder-solid-fontawesome.svg`, alt='dir')
+      .media-heading #{ref.title}

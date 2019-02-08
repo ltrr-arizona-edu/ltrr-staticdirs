@@ -3,7 +3,7 @@
     div.col-xs-12(aria-label='breadcrumb')
       .item-list
         ol.breadcrumb
-          each crumb in breadcrumbRefs
+          each crumb in breadcrumbs
             li
-              a(href=crumb.href) crumb.title
-          li.active dirName    
+              a(href=crumb.href) #{crumb.title}
+          li.active #{webDirName}    

@@ -5,10 +5,10 @@ ul.media-list
         when 'file'
           .media-left
             a(href=ref.href)
-              img(class='media-object', width=2rem, height=2rem, src='/dirindex_webfiles/file-solid-fontawesome.svg', alt='file')
-          .media-heading ref.title
+              img(class='media-object', width=widthFileIcon, height=heightFileIcon, src=`${images}/file-solid-fontawesome.svg`, alt='file')
+          .media-heading #{ref.title}
         when 'dir'
           .media-left
             a(href=ref.href)
-              img(class='media-object', width=2rem, height=2rem, src='/dirindex_webfiles/folder-solid-fontawesome.svg', alt='dir')
-          .media-heading ref.title
+              img(class='media-object', width=widthFileIcon, height=heightFileIcon, src=`${images}/folder-solid-fontawesome.svg`, alt='dir')
+          .media-heading #{ref.title}
