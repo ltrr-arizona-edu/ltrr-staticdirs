@@ -1,14 +1,14 @@
 ul.media-list
   each ref in dirRefs
     li.media
-      case ref.type
+      case ref.entryType
         when 'file'
           .media-left
             a(href=ref.href)
               img(class='media-object', width=widthFileIcon, height=heightFileIcon, src=`${images}/file-solid-fontawesome.svg`, alt='file')
-          .media-heading #{ref.title}
+          .media-body #{ref.title}
         when 'dir'
           .media-left
             a(href=ref.href)
               img(class='media-object', width=widthFileIcon, height=heightFileIcon, src=`${images}/folder-solid-fontawesome.svg`, alt='dir')
-          .media-heading #{ref.title}
+          .media-body #{ref.title}

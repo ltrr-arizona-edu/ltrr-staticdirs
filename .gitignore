@@ -1,6 +1,9 @@
+# Raw file and site staging paths
+home/
+build/
+
 # Test Files
 backstop_data
-home/
 
 # Gulp Build Generated Files
 src/img/*.svg
