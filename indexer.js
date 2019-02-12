@@ -74,10 +74,8 @@ const purgedTree = function recursivelyDeletedDirectoryTree(victim) {
     );
 };
 
-let processedDir;
-
 const entryProcessor = function directoryEntryProcessor(
-  srcTree, dstTree, parents, siblings, indentLevel,
+  srcTree, dstTree, parents, siblings, indentLevel, processedDir,
 ) {
   return (entry) => {
     if (encodeURIComponent(entry.name) === indexName) {
@@ -135,7 +133,7 @@ const webDirProcessor = function webDirRefProcessor(webTree) {
 };
 
 const dirProcessor = function directoryTreeProcessor(srcRoot, dstRoot, webRoot) {
-  return (dirName, parents, siblings, indentLevel) => {
+  const processedDir = (dirName, parents, siblings, indentLevel) => {
     const webDirName = dirName;
     const nextParents = parents.concat([dirName]);
     const nextIndent = indentLevel + 2;
@@ -158,7 +156,10 @@ const dirProcessor = function directoryTreeProcessor(srcRoot, dstRoot, webRoot) 
       .then((entries) => {
         const nextSiblings = entries.filter(entry => entry.isDirectory())
           .map(dirEntry => dirEntry.name);
-        return entries.map(entryProcessor(srcTree, dstTree, nextParents, nextSiblings, nextIndent));
+        return entries
+          .map(entryProcessor(
+            srcTree, dstTree, nextParents, nextSiblings, nextIndent, processedDir,
+          ));
       })
       .then(dirList => Promise.all(dirList))
       .then((resolvedTree) => {
@@ -167,6 +168,7 @@ const dirProcessor = function directoryTreeProcessor(srcRoot, dstRoot, webRoot) 
       })
       .catch(errmes => logMessage(errmes));
   };
+  return processedDir;
 };
 
 const placedWebAssets = function copySelectiveWebAssetsToDst(assetRoot, dst) {
@@ -186,12 +188,12 @@ const placedWebAssets = function copySelectiveWebAssetsToDst(assetRoot, dst) {
     .catch(errmes => logMessage(errmes));
 };
 
-processedDir = dirProcessor(source, destination, webRootURL);
+const processedDirTree = dirProcessor(source, destination, webRootURL);
 
 purgedTree(destination)
   .then(() => fsPromises.mkdir(destination, { mode: 0o755 }))
   .then(() => Promise.all([
     placedWebAssets(assets, destination),
-    processedDir(homeDir, [], [], 0).then(dirLog => logMessage(dirLog)),
+    processedDirTree(homeDir, [], [], 0).then(dirLog => logMessage(dirLog)),
   ]))
   .catch(errmes => logMessage(errmes));
