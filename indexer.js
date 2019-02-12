@@ -85,6 +85,11 @@ const entryProcessor = function directoryEntryProcessor(
       return fsPromises.symlink(path.join(srcTree, entry.name), path.join(dstTree, entry.name))
         .then(() => paddedName(entry.name, indentLevel));
     }
+    if (entry.isSymbolicLink()) {
+      return fsPromises.realpath(path.join(srcTree, entry.name))
+        .then(real => fsPromises.symlink(path.join(srcTree, real), path.join(dstTree, entry.name)))
+        .then(() => paddedName(entry.name, indentLevel));
+    }
     if (entry.isDirectory()) {
       return processedDir(entry.name, parents, siblings, indentLevel);
     }
