@@ -3,6 +3,9 @@
     div.col-xs-12.bg-sky(aria-label='breadcrumb')
       .item-list
         ol.breadcrumb
+          li
+            a(href=`${root}/`)
+              img(width=widthFileIcon, height=heightFileIcon, src=`${images}/home-solid-fontawesome.svg`, alt='home')
           each crumb in breadcrumbs
             li
               a(href=crumb.href) #{crumb.title}
