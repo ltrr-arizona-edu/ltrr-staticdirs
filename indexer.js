@@ -5,7 +5,7 @@ const url = require('url');
 
 const source = process.env.DIRINDEX_SOURCE || path.resolve();
 const destination = process.env.DIRINDEX_DESTINATION || path.resolve('build');
-const homeDir = process.env.DIRINDEX_HOMEDIR || 'home';
+const webSiteName = process.env.DIRINDEX_SITENAME || 'Home';
 const indexName = process.env.DIRINDEX_INDEXNAME || 'index.html';
 const webRootURL = process.env.DIRINDEX_WEBROOT || url.pathToFileURL(destination);
 // eslint-disable-next-line no-console, no-unused-vars
@@ -19,6 +19,7 @@ const assets = path.resolve(webAssetDir);
 
 const baseOptions = {
   root: webRootURL,
+  siteName: webSiteName,
   scripts: [webRootURL].concat(webScripts).join('/'),
   images: [webRootURL].concat(webImages).join('/'),
   styles: [webRootURL].concat(webStyles).join('/'),
@@ -31,6 +32,7 @@ const errorExit = function forceUntidyErrorExit(message) {
 };
 
 const subTreeIndex = pug.compileFile(path.join(webAssetDir, 'subtreeindex.pug'), { basedir: assets });
+const topLevelIndex = pug.compileFile(path.join(webAssetDir, 'toplevelindex.pug'), { basedir: assets });
 
 const paddedName = function whiteSpacePaddedName(name, indentLevel) {
   return ' '.repeat(indentLevel) + name;
@@ -79,7 +81,7 @@ const entryProcessor = function directoryEntryProcessor(
 ) {
   return (entry) => {
     if (encodeURIComponent(entry.name) === indexName) {
-      return '';
+      return paddedName(entry.name, indentLevel);
     }
     if (entry.isFile()) {
       return fsPromises.symlink(path.join(srcTree, entry.name), path.join(dstTree, entry.name))
@@ -176,7 +178,26 @@ const dirProcessor = function directoryTreeProcessor(srcRoot, dstRoot, webRoot) 
   return processedDir;
 };
 
-const placedWebAssets = function copySelectiveWebAssetsToDst(assetRoot, dst) {
+const topLevelDir = function copiedTopLevelDataToDst(srcRoot, dstRoot, webRoot, processedDir) {
+  return fsPromises.readdir(srcRoot, { withFileTypes: true })
+    .then((rawEntries) => {
+      const dirRefs = rawEntries.map(webDirProcessor(webRoot));
+      const locals = Object.assign({ dirRefs }, baseOptions);
+      fsPromises.writeFile(path.join(dstRoot, indexName), topLevelIndex(locals), { mode: 0o644 });
+      return rawEntries;
+    })
+    .then((entries) => {
+      const nextSiblings = entries.filter(entry => entry.isDirectory())
+        .map(dirEntry => dirEntry.name);
+      return entries
+        .map(entryProcessor(srcRoot, dstRoot, [], nextSiblings, 0, processedDir));
+    })
+    .then(dirList => Promise.all(dirList))
+    .then(resolvedTree => resolvedTree.join('\n'))
+    .catch(errmes => logMessage(errmes));
+};
+
+const placedWebAssets = function copiedSelectiveWebAssetsToDst(assetRoot, dst) {
   const scriptDir = joinedPath(dst, webScripts);
   const imageDir = joinedPath(dst, webImages);
   const styleDir = joinedPath(dst, webStyles);
@@ -199,6 +220,7 @@ purgedTree(destination)
   .then(() => fsPromises.mkdir(destination, { mode: 0o755 }))
   .then(() => Promise.all([
     placedWebAssets(assets, destination),
-    processedDirTree(homeDir, [], [], 0).then(dirLog => logMessage(dirLog)),
+    topLevelDir(source, destination, webRootURL, processedDirTree)
+      .then(dirLog => logMessage(dirLog)),
   ]))
   .catch(errmes => logMessage(errmes));
