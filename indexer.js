@@ -76,20 +76,60 @@ const purgedTree = function recursivelyDeletedDirectoryTree(victim) {
     );
 };
 
+const relinkedTree = function recursivelyFixedSymbolicLinkTree(srcTree, dstTree) {
+  return fsPromises.readdir(srcTree, { withFileTypes: true })
+    .then(entries => entries.map((entry) => {
+      const entryPath = path.join(srcTree, entry.name);
+      const destPath = path.join(dstTree, entry.name);
+      if (entry.isDirectory()) {
+        return relinkedTree(entryPath, destPath);
+      }
+      if (entry.isSymbolicLink()) {
+        return fsPromises.realpath(entryPath)
+          .then(actualEntry => Promise.all([
+            fsPromises.readlink(entryPath),
+            fsPromises.stat(actualEntry),
+          ]))
+          .then((linkInfo) => {
+            const rel = linkInfo[0];
+            const stats = linkInfo[1];
+            if (stats.isDirectory()) {
+              const relIndex = path.join(rel, indexName);
+              return fsPromises.unlink(destPath)
+                .then(() => fsPromises.symlink(relIndex, destPath))
+                .then(() => `Fixed ${entryPath} --> ${relIndex}`);
+            }
+            return `Skipped ${rel}`;
+          })
+          .catch(errmes => logMessage(errmes));
+      }
+      return `Ignored ${entry.name}`;
+    }))
+    .then(fixList => Promise.all(fixList))
+    .then(logs => logs.join('\n'))
+    .catch(errmes => logMessage(errmes));
+};
+
+const linkProcessor = function symbolicLinkEntryProcessor(srcTree, dstTree) {
+  return name => fsPromises.realpath(path.join(srcTree, name))
+    .then(real => fsPromises.symlink(real, path.join(dstTree, name)))
+    .catch(errmes => logMessage(errmes));
+};
+
 const entryProcessor = function directoryEntryProcessor(
-  srcTree, dstTree, parents, siblings, indentLevel, processedDir,
+  srcTree, dstTree, parents, siblings, indentLevel, processedLink, processedDir,
 ) {
   return (entry) => {
     if (encodeURIComponent(entry.name) === indexName) {
       return paddedName(entry.name, indentLevel);
     }
+    const entryPath = path.join(srcTree, entry.name);
     if (entry.isFile()) {
-      return fsPromises.symlink(path.join(srcTree, entry.name), path.join(dstTree, entry.name))
+      return fsPromises.symlink(entryPath, path.join(dstTree, entry.name))
         .then(() => paddedName(entry.name, indentLevel));
     }
     if (entry.isSymbolicLink()) {
-      return fsPromises.realpath(path.join(srcTree, entry.name))
-        .then(real => fsPromises.symlink(path.join(srcTree, real), path.join(dstTree, entry.name)))
+      return processedLink(entry.name)
         .then(() => paddedName(entry.name, indentLevel));
     }
     if (entry.isDirectory()) {
@@ -132,6 +172,9 @@ const webDirProcessor = function webDirRefProcessor(webTree) {
     if (entry.isFile()) {
       return { entryType: 'file', href: `${webTree}/${encoded}`, title: entry.name };
     }
+    if (entry.isSymbolicLink()) {
+      return { entryType: 'link', href: `${webTree}/${encoded}`, title: entry.name };
+    }
     if (entry.isDirectory()) {
       return { entryType: 'dir', href: `${webTree}/${encoded}/${indexName}`, title: entry.name };
     }
@@ -150,6 +193,7 @@ const dirProcessor = function directoryTreeProcessor(srcRoot, dstRoot, webRoot) 
     const webTree = `${webAbove}/${webDirName}`;
     const navRefs = siblings.map(webNavProcessor(webAbove, dirName));
     const breadcrumbs = webBreadcrumbs(webRoot, parents);
+    const processedLink = linkProcessor(srcTree, dstTree);
     return fsPromises.mkdir(dstTree, { mode: 0o755 })
       .then(() => fsPromises.readdir(srcTree, { withFileTypes: true }))
       .then((rawEntries) => {
@@ -165,7 +209,7 @@ const dirProcessor = function directoryTreeProcessor(srcRoot, dstRoot, webRoot) 
           .map(dirEntry => dirEntry.name);
         return entries
           .map(entryProcessor(
-            srcTree, dstTree, nextParents, nextSiblings, nextIndent, processedDir,
+            srcTree, dstTree, nextParents, nextSiblings, nextIndent, processedLink, processedDir,
           ));
       })
       .then(dirList => Promise.all(dirList))
@@ -179,6 +223,7 @@ const dirProcessor = function directoryTreeProcessor(srcRoot, dstRoot, webRoot) 
 };
 
 const topLevelDir = function copiedTopLevelDataToDst(srcRoot, dstRoot, webRoot, processedDir) {
+  const processedLink = linkProcessor(srcRoot, dstRoot);
   return fsPromises.readdir(srcRoot, { withFileTypes: true })
     .then((rawEntries) => {
       const dirRefs = rawEntries.map(webDirProcessor(webRoot));
@@ -190,7 +235,7 @@ const topLevelDir = function copiedTopLevelDataToDst(srcRoot, dstRoot, webRoot, 
       const nextSiblings = entries.filter(entry => entry.isDirectory())
         .map(dirEntry => dirEntry.name);
       return entries
-        .map(entryProcessor(srcRoot, dstRoot, [], nextSiblings, 0, processedDir));
+        .map(entryProcessor(srcRoot, dstRoot, [], nextSiblings, 0, processedLink, processedDir));
     })
     .then(dirList => Promise.all(dirList))
     .then(resolvedTree => resolvedTree.join('\n'))
@@ -223,4 +268,6 @@ purgedTree(destination)
     topLevelDir(source, destination, webRootURL, processedDirTree)
       .then(dirLog => logMessage(dirLog)),
   ]))
+  .then(() => relinkedTree(source, destination))
+  .then(linkLog => logMessage(linkLog))
   .catch(errmes => logMessage(errmes));

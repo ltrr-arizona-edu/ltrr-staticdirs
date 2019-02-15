@@ -7,6 +7,11 @@ ul.media-list
             a(href=ref.href)
               img(class='media-object', width=widthFileIcon, height=heightFileIcon, src=`${images}/file-solid-fontawesome.svg`, alt='file')
           .media-body #{ref.title}
+        when 'link'
+          .media-left
+            a(href=ref.href)
+              img(class='media-object', width=widthFileIcon, height=heightFileIcon, src=`${images}/link-solid-fontawesome.svg`, alt='link')
+          .media-body #{ref.title}
         when 'dir'
           .media-left
             a(href=ref.href)
