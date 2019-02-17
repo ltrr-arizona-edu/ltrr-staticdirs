@@ -90,9 +90,7 @@ const relinkedTree = function recursivelyFixedSymbolicLinkTree(srcTree, dstTree)
             fsPromises.readlink(entryPath),
             fsPromises.stat(actualEntry),
           ]))
-          .then((linkInfo) => {
-            const rel = linkInfo[0];
-            const stats = linkInfo[1];
+          .then(([rel, stats]) => {
             if (stats.isDirectory()) {
               const relIndex = path.join(rel, indexName);
               return fsPromises.unlink(destPath)
