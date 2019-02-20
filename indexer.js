@@ -50,7 +50,7 @@ VerboseLogger.prototype.formattedDir = function formattedDirectory(
 };
 
 VerboseLogger.prototype.deeper = function loggerForDeeperLevel() {
-  return new VerboseLogger(this.indentLevel + 2);
+  return Object.assign({ indentLevel: this.indentLevel + 2 }, this);
 };
 
 function NormalLogger(level) {
@@ -75,8 +75,8 @@ NormalLogger.prototype.deeper = function loggerForDeeperLevel() {
   return this;
 };
 
-const topLog = (process.env.DIRINDEX_QUIET)
-  ? (new NormalLogger()) : (new VerboseLogger());
+const topLog = (process.env.DIRINDEX_VERBOSE)
+  ? (new VerboseLogger()) : (new NormalLogger());
 
 const errorExit = function forceUntidyErrorExit(message) {
   throw Error(message);
