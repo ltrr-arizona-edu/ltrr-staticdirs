@@ -48,7 +48,6 @@ const verboseLogger = {
 };
 
 const normalLogger = {
-  indentLevel: 0,
   message() {},
   debugMessage() {},
   paddedName() {},
