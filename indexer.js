@@ -31,6 +31,7 @@ const verboseLogger = {
   // eslint-disable-next-line no-console
     console.log(mess);
   },
+  debugMessage() {},
   paddedName(name) {
     return ' '.repeat(this.indentLevel) + name;
   },
@@ -49,13 +50,34 @@ const verboseLogger = {
 const normalLogger = {
   indentLevel: 0,
   message() {},
+  debugMessage() {},
   paddedName() {},
   formattedEntry() {},
   formattedDir() {},
   deeper() { return this; },
 };
 
-const topLog = (process.env.DIRINDEX_VERBOSE) ? verboseLogger : normalLogger;
+const debugLogger = Object.assign(
+  {},
+  verboseLogger,
+  {
+    debugMessage(mess) {
+      // eslint-disable-next-line no-console
+      console.log(mess);
+    },
+  },
+);
+
+const topLog = ((level) => {
+  switch (level) {
+    case '1':
+      return verboseLogger;
+    case '2':
+      return debugLogger;
+    default:
+      return normalLogger;
+  }
+})(process.env.DIRINDEX_VERBOSE);
 
 const errorExit = function forceUntidyErrorExit(message) {
   throw Error(message);
@@ -98,7 +120,7 @@ const purgedTree = function recursivelyDeletedDirectoryTree(victim, log) {
     .then(() => fsPromises.stat(victim))
     .then(
       () => errorExit(`Directory still exists: ${victim}`),
-      () => log.message(`Deleted OK: ${victim}`),
+      () => log.debugMessage(`Deleted OK: ${victim}`),
     );
 };
 
@@ -290,5 +312,5 @@ purgedTree(destination, topLog)
       .then(dirLog => topLog.message(dirLog)),
   ]))
   .then(() => relinkedTree(source, destination, topLog))
-  .then(linkLog => topLog.message(linkLog))
+  .then(linkLog => topLog.debugMessage(linkLog))
   .catch(errmes => topLog.message(errmes));
