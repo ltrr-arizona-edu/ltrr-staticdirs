@@ -25,58 +25,43 @@ const baseOptions = {
   heightFileIcon: '32px',
 };
 
-function VerboseLogger(level) {
-  this.indentLevel = level || 0;
-}
-
-VerboseLogger.prototype.message = function emitLogMessage(mess) {
+const verboseLogger = {
+  indentLevel: 0,
+  message(mess) {
   // eslint-disable-next-line no-console
-  console.log(mess);
+    console.log(mess);
+  },
+  paddedName(name) {
+    return ' '.repeat(this.indentLevel) + name;
+  },
+  formattedEntry(name) {
+    return this.paddedName(name);
+  },
+  formattedDir(dirName, parents, siblings, entries) {
+    const dirHeader = `${this.paddedName(dirName)}/ ${parents.join(' --> ')} | [${siblings.join(', ')}]`;
+    return [dirHeader].concat(entries).join('\n');
+  },
+  deeper() {
+    return Object.assign({}, this, { indentLevel: this.indentLevel + 2 });
+  },
 };
 
-VerboseLogger.prototype.paddedName = function spacePaddedName(name) {
-  return ' '.repeat(this.indentLevel) + name;
+console.log(verboseLogger);
+const nextLogger = verboseLogger.deeper();
+console.log(nextLogger);
+const nextNextLogger = nextLogger.deeper();
+console.log(nextNextLogger);
+
+const normalLogger = {
+  indentLevel: 0,
+  message() {},
+  paddedName() {},
+  formattedEntry() {},
+  formattedDir() {},
+  deeper() { return this; },
 };
 
-VerboseLogger.prototype.formattedEntry = function formattedDirEntry(name) {
-  return this.paddedName(name);
-};
-
-VerboseLogger.prototype.formattedDir = function formattedDirectory(
-  dirName, parents, siblings, entries,
-) {
-  const dirHeader = `${this.paddedName(dirName)}/ ${parents.join(' --> ')} | [${siblings.join(', ')}]`;
-  return [dirHeader].concat(entries).join('\n');
-};
-
-VerboseLogger.prototype.deeper = function loggerForDeeperLevel() {
-  return Object.assign({ indentLevel: this.indentLevel + 2 }, this);
-};
-
-function NormalLogger(level) {
-  this.indentLevel = level || 0;
-}
-
-NormalLogger.prototype.message = function emitLogMessage() {};
-
-NormalLogger.prototype.paddedName = function spacePaddedName() {
-  return '';
-};
-
-NormalLogger.prototype.formattedEntry = function formattedDirEntry() {
-  return '';
-};
-
-NormalLogger.prototype.formattedDir = function formattedDirectory() {
-  return '';
-};
-
-NormalLogger.prototype.deeper = function loggerForDeeperLevel() {
-  return this;
-};
-
-const topLog = (process.env.DIRINDEX_VERBOSE)
-  ? (new VerboseLogger()) : (new NormalLogger());
+const topLog = (process.env.DIRINDEX_VERBOSE) ? verboseLogger : normalLogger;
 
 const errorExit = function forceUntidyErrorExit(message) {
   throw Error(message);
@@ -258,9 +243,7 @@ const dirProcessor = function directoryTreeProcessor(srcRoot, dstRoot, webRoot) 
           ));
       })
       .then(dirList => Promise.all(dirList))
-      .then((resolvedTree) => {
-        log.formattedDir(dirName, parents, siblings, resolvedTree);
-      })
+      .then(resolvedTree => log.formattedDir(dirName, parents, siblings, resolvedTree))
       .catch(errmes => log.message(errmes));
   };
   return processedDir;
