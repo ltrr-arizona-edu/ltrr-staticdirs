@@ -46,12 +46,6 @@ const verboseLogger = {
   },
 };
 
-console.log(verboseLogger);
-const nextLogger = verboseLogger.deeper();
-console.log(nextLogger);
-const nextNextLogger = nextLogger.deeper();
-console.log(nextNextLogger);
-
 const normalLogger = {
   indentLevel: 0,
   message() {},
