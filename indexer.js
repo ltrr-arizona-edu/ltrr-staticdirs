@@ -123,62 +123,49 @@ const purgedTree = function recursivelyDeletedDirectoryTree(victim, log) {
     );
 };
 
-const relinkedTree = function recursivelyFixedSymbolicLinkTree(srcTree, dstTree, log) {
-  return fsPromises.readdir(srcTree, { withFileTypes: true })
-    .then(entries => entries.map((entry) => {
-      const entryPath = path.join(srcTree, entry.name);
-      const destPath = path.join(dstTree, entry.name);
-      if (entry.isDirectory()) {
-        return relinkedTree(entryPath, destPath);
-      }
-      if (entry.isSymbolicLink()) {
-        return fsPromises.realpath(entryPath)
-          .then(actualEntry => Promise.all([
-            fsPromises.readlink(entryPath),
-            fsPromises.stat(actualEntry),
-          ]))
-          .then(([rel, stats]) => {
-            if (stats.isDirectory()) {
-              const relIndex = path.join(rel, indexName);
-              return fsPromises.unlink(destPath)
-                .then(() => fsPromises.symlink(relIndex, destPath))
-                .then(() => `Fixed ${entryPath} --> ${relIndex}`);
-            }
-            return `Skipped ${rel}`;
-          })
-          .catch(errmes => log.message(errmes));
-      }
-      return `Ignored ${entry.name}`;
-    }))
-    .then(fixList => Promise.all(fixList))
-    .then(logs => logs.join('\n'))
-    .catch(errmes => log.message(errmes));
+const doFileEntry = function processDirectoryFileEntry(name, entryPath, dstTree, webTree, log) {
+  const encoded = encodeURIComponent(name);
+  return fsPromises.symlink(entryPath, path.join(dstTree, name))
+    .then(() => [
+      { entryType: 'file', href: `${webTree}/${encoded}`, title: name },
+      log.formattedEntry(name),
+    ])
+    .catch(errmes => log.message(`Problem processing file ${entryPath}: ${errmes}`));
 };
 
-const linkProcessor = function symbolicLinkEntryProcessor(srcTree, dstTree, log) {
-  return name => fsPromises.realpath(path.join(srcTree, name))
-    .then(real => fsPromises.symlink(real, path.join(dstTree, name)))
-    .catch(errmes => log.message(errmes));
+const doSymlinkEntry = function processDirectorySymlinkEntry(name, entryPath, webTree, log) {
+  fsPromises.realpath(entryPath)
+    .then(actualEntry => Promise.all([
+      fsPromises.readlink(entryPath),
+      fsPromises.stat(actualEntry),
+    ]))
+    .then(([rel, stats]) => {
+      const relURL = rel.split(path.sep).map(part => encodeURIComponent(part)).join('/');
+      const relRef = (stats.isDirectory()) ? `${relURL}/${indexName}` : relURL;
+      return [
+        { entryType: 'link', href: `${webTree}/${relRef}`, title: name },
+        log.formattedEntry(name),
+      ];
+    })
+    .catch(errmes => log.message(`Problem processing symlink ${entryPath}: ${errmes}`));
 };
 
-const entryProcessor = function directoryEntryProcessor(
-  srcTree, dstTree, parents, siblings, log, processedLink, processedDir,
+const tupleEntryProcessor = function tupleDirectoryEntryProcessor(
+  srcTree, dstTree, webTree, parents, siblings, log, doDirEntry,
 ) {
   return (entry) => {
-    if (encodeURIComponent(entry.name) === indexName) {
-      return log.formattedEntry(entry.name);
+    if (entry.name === indexName) {
+      return [null, log.formattedEntry(entry.name)];
     }
     const entryPath = path.join(srcTree, entry.name);
     if (entry.isFile()) {
-      return fsPromises.symlink(entryPath, path.join(dstTree, entry.name))
-        .then(() => log.formattedEntry(entry.name));
+      return doFileEntry(entry.name, entryPath, dstTree, webTree, log);
     }
     if (entry.isSymbolicLink()) {
-      return processedLink(entry.name)
-        .then(() => log.formattedEntry(entry.name));
+      return doSymlinkEntry(entry.name, entryPath, webTree, log);
     }
     if (entry.isDirectory()) {
-      return processedDir(entry.name, parents, siblings, log);
+      return doDirEntry(entry.name, parents, siblings, log);
     }
     return errorExit(`Cannot process ${entry.name} in ${srcTree}`);
   };
@@ -208,28 +195,9 @@ const webNavProcessor = function webNavRefProcessor(webContext, current) {
   };
 };
 
-const webDirProcessor = function webDirRefProcessor(webTree) {
-  return (entry) => {
-    const encoded = encodeURIComponent(entry.name);
-    if (encoded === indexName) {
-      return { entryType: 'index' };
-    }
-    if (entry.isFile()) {
-      return { entryType: 'file', href: `${webTree}/${encoded}`, title: entry.name };
-    }
-    if (entry.isSymbolicLink()) {
-      return { entryType: 'link', href: `${webTree}/${encoded}`, title: entry.name };
-    }
-    if (entry.isDirectory()) {
-      return { entryType: 'dir', href: `${webTree}/${encoded}/${indexName}`, title: entry.name };
-    }
-    return errorExit(`Cannot add ${entry.name} to ${webTree}`);
-  };
-};
-
 const dirProcessor = function directoryTreeProcessor(srcRoot, dstRoot, webRoot) {
-  const processedDir = (dirName, parents, siblings, log) => {
-    const webDirName = dirName;
+  const doDirEntry = (dirName, parents, siblings, log) => {
+    const webDirName = encodeURIComponent(dirName);
     const nextParents = parents.concat([dirName]);
     const nextLog = log.deeper();
     const srcTree = joinedPath(srcRoot, nextParents);
@@ -238,50 +206,74 @@ const dirProcessor = function directoryTreeProcessor(srcRoot, dstRoot, webRoot) 
     const webTree = `${webAbove}/${webDirName}`;
     const navRefs = siblings.map(webNavProcessor(webAbove, dirName));
     const breadcrumbs = webBreadcrumbs(webRoot, parents);
-    const processedLink = linkProcessor(srcTree, dstTree, log);
     return fsPromises.mkdir(dstTree, { mode: 0o755 })
       .then(() => fsPromises.readdir(srcTree, { withFileTypes: true }))
-      .then((rawEntries) => {
-        const dirRefs = rawEntries.map(webDirProcessor(webTree));
-        const locals = Object.assign({
-          webDirName, breadcrumbs, navRefs, dirRefs,
-        }, baseOptions);
-        fsPromises.writeFile(path.join(dstTree, indexName), subTreeIndex(locals), { mode: 0o644 });
-        return rawEntries;
-      })
       .then((entries) => {
         const nextSiblings = entries.filter(entry => entry.isDirectory())
           .map(dirEntry => dirEntry.name);
         return entries
-          .map(entryProcessor(
-            srcTree, dstTree, nextParents, nextSiblings, nextLog, processedLink, processedDir,
+          .map(tupleEntryProcessor(
+            srcTree, dstTree, webTree, nextParents, nextSiblings, nextLog, doDirEntry,
           ));
       })
       .then(dirList => Promise.all(dirList))
-      .then(resolvedTree => log.formattedDir(dirName, parents, siblings, resolvedTree))
-      .catch(errmes => log.message(errmes));
+      .then((tuples) => {
+        const dirRefs = tuples.reduce(
+          (tuple, webRefs) => ((tuple[0] === null)
+            ? webRefs : webRefs.concat(tuple[0])),
+          [],
+        );
+        const dirLogs = tuples.reduce(
+          (tuple, logged) => (((tuple[1] === null) || (tuple[1] === undefined))
+            ? logged : logged.concat(tuple[1])),
+          [],
+        );
+        const locals = Object.assign({
+          webDirName, breadcrumbs, navRefs, dirRefs,
+        }, baseOptions);
+        return Promise.all([
+          fsPromises.writeFile(
+            path.join(dstTree, indexName), subTreeIndex(locals), { mode: 0o644 },
+          ),
+          dirLogs,
+        ]);
+      })
+      .then(([, subTreeLog]) => [
+        { entryType: 'dir', href: `${webTree}/${indexName}`, title: dirName },
+        log.formattedDir(dirName, parents, siblings, subTreeLog),
+      ])
+      .catch(errmes => log.message(`Problem processing directory ${srcTree}: ${errmes}`));
   };
-  return processedDir;
+  return doDirEntry;
 };
 
 const topLevelDir = function copiedTopLevelDataToDst(srcRoot, dstRoot, webRoot, log, processedDir) {
-  const processedLink = linkProcessor(srcRoot, dstRoot, log);
   return fsPromises.readdir(srcRoot, { withFileTypes: true })
-    .then((rawEntries) => {
-      const dirRefs = rawEntries.map(webDirProcessor(webRoot));
-      const locals = Object.assign({ dirRefs }, baseOptions);
-      fsPromises.writeFile(path.join(dstRoot, indexName), topLevelIndex(locals), { mode: 0o644 });
-      return rawEntries;
-    })
     .then((entries) => {
       const nextSiblings = entries.filter(entry => entry.isDirectory())
         .map(dirEntry => dirEntry.name);
       return entries
-        .map(entryProcessor(srcRoot, dstRoot, [], nextSiblings, log, processedLink, processedDir));
+        .map(tupleEntryProcessor(srcRoot, dstRoot, [], nextSiblings, log, processedDir));
     })
     .then(dirList => Promise.all(dirList))
-    .then(resolvedTree => resolvedTree.join('\n'))
-    .catch(errmes => log.message(errmes));
+    .then((tuples) => {
+      const dirRefs = tuples.reduce(
+        (tuple, webRefs) => ((tuple[0] === null)
+          ? webRefs : webRefs.concat(tuple[0])),
+        [],
+      );
+      const dirLogs = tuples.reduce(
+        (tuple, logged) => (((tuple[1] === null) || (tuple[1] === undefined))
+          ? logged : logged.concat(tuple[1])),
+        [],
+      );
+      const locals = Object.assign({ dirRefs }, baseOptions);
+      return Promise.all([
+        fsPromises.writeFile(path.join(dstRoot, indexName), topLevelIndex(locals), { mode: 0o644 }),
+        log.formattedDir(srcRoot, [], [], dirLogs),
+      ]);
+    })
+    .catch(errmes => log.message(`Problem processing directory ${srcRoot}: ${errmes}`));
 };
 
 const placedWebAssets = function copiedSelectiveWebAssetsToDst(assetRoot, dst, log) {
@@ -308,8 +300,6 @@ purgedTree(destination, topLog)
   .then(() => Promise.all([
     placedWebAssets(assets, destination, topLog),
     topLevelDir(source, destination, webRootURL, topLog.deeper(), processedDirTree)
-      .then(dirLog => topLog.message(dirLog)),
+      .then(([, dirLog]) => topLog.message(dirLog)),
   ]))
-  .then(() => relinkedTree(source, destination, topLog))
-  .then(linkLog => topLog.debugMessage(linkLog))
   .catch(errmes => topLog.message(errmes));
