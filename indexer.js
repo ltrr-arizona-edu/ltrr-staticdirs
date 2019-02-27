@@ -229,13 +229,12 @@ const webNavProcessor = function webNavRefProcessor(webContext, current) {
 
 const dirProcessor = function directoryTreeProcessor(srcRoot, dstRoot, webRoot) {
   const doDirEntry = (dirName, parents, siblings, log) => {
-    const webDirName = encodeURIComponent(dirName);
     const nextParents = parents.concat([dirName]);
     const nextLog = log.deeper();
     const srcTree = joinedPath(srcRoot, nextParents);
     const dstTree = joinedPath(dstRoot, nextParents);
     const webAbove = [webRoot].concat(parents.map(encodeURIComponent)).join('/');
-    const webTree = `${webAbove}/${webDirName}`;
+    const webTree = `${webAbove}/${encodeURIComponent(dirName)}`;
     const navRefs = siblings.map(webNavProcessor(webAbove, dirName));
     const breadcrumbs = webBreadcrumbs(webRoot, parents);
     return fsPromises.mkdir(dstTree, { mode: 0o755 })
@@ -253,7 +252,7 @@ const dirProcessor = function directoryTreeProcessor(srcRoot, dstRoot, webRoot) 
         const dirRefs = extractWebRefs(tuples);
         const dirLogs = extractLogFrags(tuples);
         const locals = Object.assign({
-          webDirName: dirName, breadcrumbs, navRefs, dirRefs,
+          dirName, breadcrumbs, navRefs, dirRefs,
         }, baseOptions);
         return Promise.all([
           fsPromises.writeFile(
