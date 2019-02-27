@@ -104,6 +104,29 @@ const joinedPath = function pathStringFromJoinedArray(root, pathList) {
   );
 };
 
+const tupleReducer = function makeExtractNthTupleUtility(n) {
+  return tuples => tuples.reduce(
+    (extract, tuple) => (((tuple[n] === null) || (tuple[n] === undefined))
+      ? extract : extract.concat(tuple[n])),
+    [],
+  );
+};
+
+const extractWebRefs = tupleReducer(0);
+
+const extractLogFrags = tupleReducer(1);
+
+const breakageHandler = function makeBreakageHandlingUtility(entry, name, log) {
+  return (errmes) => {
+    const badName = `BROKEN ${name}`;
+    log.message(`Problem processing ${entry} ${name}: ${errmes}`);
+    return [
+      { entryType: entry, href: '#', title: badName },
+      log.formattedEntry(badName),
+    ];
+  };
+};
+
 const purgedTree = function recursivelyDeletedDirectoryTree(victim, log) {
   return fsPromises.readdir(victim, { withFileTypes: true })
     .then(entries => entries.map((entry) => {
@@ -129,13 +152,7 @@ const doIndexEntry = function processDirectoryIndexCollisionEntry(log) {
       { entryType: 'index' },
       log.formattedEntry(indexName),
     ])
-    .catch((errmes) => {
-      log.message(`Problem skipping the index ${indexName}: ${errmes}`);
-      return [
-        { entryType: 'index' },
-        log.formattedEntry(`BROKEN ${indexName}`),
-      ];
-    });
+    .catch(breakageHandler('index', indexName, log));
 };
 
 const doFileEntry = function processDirectoryFileEntry(name, entryPath, dstTree, webTree, log) {
@@ -145,14 +162,7 @@ const doFileEntry = function processDirectoryFileEntry(name, entryPath, dstTree,
       { entryType: 'file', href: `${webTree}/${encoded}`, title: name },
       log.formattedEntry(name),
     ])
-    .catch((errmes) => {
-      const badName = `BROKEN ${name}`;
-      log.message(`Problem processing file ${entryPath}: ${errmes}`);
-      return [
-        { entryType: 'file', href: '#', title: badName },
-        log.formattedEntry(badName),
-      ];
-    });
+    .catch(breakageHandler('file', name, log));
 };
 
 const doSymlinkEntry = function processDirectorySymlinkEntry(name, entryPath, webTree, log) {
@@ -169,14 +179,7 @@ const doSymlinkEntry = function processDirectorySymlinkEntry(name, entryPath, we
         log.formattedEntry(name),
       ];
     })
-    .catch((errmes) => {
-      const badName = `BROKEN ${name}`;
-      log.message(`Problem processing symlink ${entryPath}: ${errmes}`);
-      return [
-        { entryType: 'link', href: '#', title: badName },
-        log.formattedEntry(badName),
-      ];
-    });
+    .catch(breakageHandler('link', name, log));
 };
 
 const tupleEntryProcessor = function tupleDirectoryEntryProcessor(
@@ -247,18 +250,10 @@ const dirProcessor = function directoryTreeProcessor(srcRoot, dstRoot, webRoot) 
       })
       .then(dirList => Promise.all(dirList))
       .then((tuples) => {
-        const dirRefs = tuples.reduce(
-          (webRefs, tuple) => ((tuple[0] === null)
-            ? webRefs : webRefs.concat(tuple[0])),
-          [],
-        );
-        const dirLogs = tuples.reduce(
-          (logged, tuple) => (((tuple[1] === null) || (tuple[1] === undefined))
-            ? logged : logged.concat(tuple[1])),
-          [],
-        );
+        const dirRefs = extractWebRefs(tuples);
+        const dirLogs = extractLogFrags(tuples);
         const locals = Object.assign({
-          webDirName, breadcrumbs, navRefs, dirRefs,
+          webDirName: dirName, breadcrumbs, navRefs, dirRefs,
         }, baseOptions);
         return Promise.all([
           fsPromises.writeFile(
@@ -271,14 +266,7 @@ const dirProcessor = function directoryTreeProcessor(srcRoot, dstRoot, webRoot) 
         { entryType: 'dir', href: `${webTree}/${indexName}`, title: dirName },
         log.formattedDir(dirName, parents, siblings, subTreeLog),
       ])
-      .catch((errmes) => {
-        const badName = `BROKEN DIR ${dirName}`;
-        log.message(`Problem processing directory ${srcTree}: ${errmes}`);
-        return [
-          { entryType: 'dir', href: '#', title: badName },
-          log.formattedEntry(badName),
-        ];
-      });
+      .catch(breakageHandler('dir', dirName, log));
   };
   return doDirEntry;
 };
@@ -293,30 +281,15 @@ const topLevelDir = function copiedTopLevelDataToDst(srcRoot, dstRoot, webRoot, 
     })
     .then(dirList => Promise.all(dirList))
     .then((tuples) => {
-      const dirRefs = tuples.reduce(
-        (webRefs, tuple) => ((tuple[0] === null)
-          ? webRefs : webRefs.concat(tuple[0])),
-        [],
-      );
-      const dirLogs = tuples.reduce(
-        (logged, tuple) => (((tuple[1] === null) || (tuple[1] === undefined))
-          ? logged : logged.concat(tuple[1])),
-        [],
-      );
+      const dirRefs = extractWebRefs(tuples);
+      const dirLogs = extractLogFrags(tuples);
       const locals = Object.assign({ dirRefs }, baseOptions);
       return Promise.all([
         fsPromises.writeFile(path.join(dstRoot, indexName), topLevelIndex(locals), { mode: 0o644 }),
         log.formattedDir(srcRoot, [], [], dirLogs),
       ]);
     })
-    .catch((errmes) => {
-      const badName = `BROKEN DIR ${srcRoot}`;
-      log.message(`Problem processing directory ${srcRoot}: ${errmes}`);
-      return [
-        { entryType: 'dir', href: '#', title: badName },
-        log.formattedEntry(badName),
-      ];
-    });
+    .catch(breakageHandler('dir', srcRoot, log));
 };
 
 const placedWebAssets = function copiedSelectiveWebAssetsToDst(assetRoot, dst, log) {
