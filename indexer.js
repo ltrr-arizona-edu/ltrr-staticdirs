@@ -3,12 +3,12 @@ import path from 'node:path'
 import url from 'node:url'
 import pug from 'pug'
 
-const source = process.env.DIRINDEX_SOURCE || path.resolve()
-const destination = process.env.DIRINDEX_DESTINATION || path.resolve('build')
-const webSiteName = process.env.DIRINDEX_SITENAME || 'Home'
-const indexName = process.env.DIRINDEX_INDEXNAME || 'index.html'
-const webRootURL = process.env.DIRINDEX_WEBROOT || url.pathToFileURL(destination)
-const webExtraRoot = ['dirindex']
+const source = process.env.STATICDIRS_SOURCE || path.resolve()
+const destination = process.env.STATICDIRS_DESTINATION || path.resolve('build')
+const webSiteName = process.env.STATICDIRS_SITENAME || 'Home'
+const indexName = process.env.STATICDIRS_INDEXNAME || 'index.html'
+const webRootURL = process.env.STATICDIRS_WEBROOT || url.pathToFileURL(destination)
+const webExtraRoot = ['staticdirs']
 const webScripts = webExtraRoot.concat(['scripts'])
 const webImages = webExtraRoot.concat(['images'])
 const webStyles = webExtraRoot.concat(['styles'])
@@ -80,7 +80,7 @@ const topLog = (level => {
       return normalLogger
     }
   }
-})(process.env.DIRINDEX_VERBOSE)
+})(process.env.STATICDIRS_VERBOSE)
 
 const errorExit = message => {
   throw new Error(message)
