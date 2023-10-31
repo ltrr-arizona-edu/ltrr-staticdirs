@@ -4,6 +4,7 @@
   "description": "Static web site from directory trees",
   "main": "indexer.js",
   "type": "module",
+  "exports": "./indexer.js",
   "license": "MIT",
   "private": false,
   "dependencies": {

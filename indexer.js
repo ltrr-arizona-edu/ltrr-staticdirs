@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import fsPromises from 'node:fs/promises'
 import path from 'node:path'
 import url from 'node:url'
@@ -216,13 +218,21 @@ const crumb = (crumbBase, dirName) => {
 }
 
 const webBreadcrumbs = (webRoot, parents) => {
+  if ((parents === undefined) || (parents.length === 0)) {
+    return []
+  }
+
   const [dirName, ...rest] = parents
   const trailStart = crumb(webRoot, dirName)
-  if (rest === undefined) {
+  if ((rest === undefined) || (rest.length === 0)) {
     return trailStart
   }
 
   const descent = (previous, trail) => {
+    if ((previous === undefined) || (previous.length === 0)) {
+      return trail
+    }
+
     const [dirName, ...rest] = previous
     const currentCrumb = crumb(trail[trail.length - 1].base, dirName)
     if (rest === undefined) {
@@ -270,7 +280,7 @@ const dirProcessor = (srcRoot, dstRoot, webRoot) => {
       .then(tuples => {
         const dirRefs = extractWebRefs(tuples)
         const dirLogs = extractLogFrags(tuples)
-        const locals = ({ dirName, breadcrumbs, navRefs, dirRefs, ...baseOptions })
+        const locals = { dirName, breadcrumbs, navRefs, dirRefs, ...baseOptions }
         return Promise.all([
           fsPromises.writeFile(
             path.join(dstTree, indexName), subTreeIndex(locals), { mode: 0o644 }
@@ -300,7 +310,7 @@ const topLevelDir = (srcRoot, dstRoot, webRoot, log, processedDir) => {
     .then(tuples => {
       const dirRefs = extractWebRefs(tuples)
       const dirLogs = extractLogFrags(tuples)
-      const locals = ({ ...dirRefs, ...baseOptions })
+      const locals = { dirRefs, ...baseOptions }
       return Promise.all([
         fsPromises.writeFile(path.join(dstRoot, indexName), topLevelIndex(locals), { mode: 0o644 }),
         log.formattedDir(srcRoot, [], [], dirLogs)
