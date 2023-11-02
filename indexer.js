@@ -91,16 +91,19 @@ const errorExit = message => {
 const subTreeIndex = pug.compileFile(path.join(webAssetDir, 'subtreeindex.pug'), { basedir: assets })
 const topLevelIndex = pug.compileFile(path.join(webAssetDir, 'toplevelindex.pug'), { basedir: assets })
 
-const patternCopiedFiles = (srcDir, dstDir, pattern, log) => {
-  return fsPromises.readdir(srcDir, { withFileTypes: true })
-    .then(dirents => dirents.filter(entry => entry.isFile() && pattern.test(entry.name))
+const patternCopiedFiles = async (srcDir, dstDir, pattern, log) => {
+  try {
+    const dirents = await fsPromises.readdir(srcDir, { withFileTypes: true })
+    const copyList = dirents.filter(entry => entry.isFile() && pattern.test(entry.name))
       .map(fileEntry => {
         const src = path.join(srcDir, fileEntry.name)
         const dst = path.join(dstDir, fileEntry.name)
         return fsPromises.copyFile(src, dst)
-      }))
-    .then(copyList => Promise.all(copyList))
-    .catch(error => log.message(error))
+      })
+    return Promise.all(copyList)
+  } catch (error) {
+    log.message(error)
+  }
 }
 
 const joinedPath = (root, pathList) => {
@@ -129,62 +132,46 @@ const breakageHandler = (entry, name, log) => {
   }
 }
 
-const purgedTree = (victim, log) => {
-  return fsPromises.readdir(victim, { withFileTypes: true })
-    .then(
-      entries => entries.map(entry => {
-        const entryPath = path.join(victim, entry.name)
-        if (entry.isDirectory()) {
-          return purgedTree(entryPath, log.deeper())
-        }
-
-        return fsPromises.unlink(entryPath)
-      }
-      ))
-    .then(hitList => Promise.all(hitList))
-    .then(() => fsPromises.rmdir(victim))
-    .catch(error => log.message(error))
-    .then(() => fsPromises.stat(victim))
-    .then(
-      () => errorExit(`Directory still exists: ${victim}`),
-      () => log.debugMessage(`Deleted OK: ${victim}`)
-    )
-}
-
 const doIndexEntry = log => {
-  return Promise.resolve()
-    .then(() => [
+  try {
+    return [
       { entryType: 'index' },
       log.formattedEntry(indexName)
-    ])
-    .catch(breakageHandler('index', indexName, log))
+    ]
+  } catch (error) {
+    (breakageHandler('index', indexName, log))(error)
+  }
 }
 
-const doFileEntry = (name, entryPath, dstTree, webTree, log) => {
+const doFileEntry = async (name, entryPath, dstTree, webTree, log) => {
   const encoded = encodeURIComponent(name)
-  return fsPromises.symlink(entryPath, path.join(dstTree, name))
-    .then(() => [
+  try {
+    await fsPromises.symlink(entryPath, path.join(dstTree, name))
+    return [
       { entryType: 'file', href: `${webTree}/${encoded}`, title: name },
       log.formattedEntry(name)
-    ])
-    .catch(breakageHandler('file', name, log))
+    ]
+  } catch (error) {
+    (breakageHandler('file', name, log))(error)
+  }
 }
 
-const doSymlinkEntry = (name, entryPath, webTree, log) => {
-  return fsPromises.realpath(entryPath)
-    .then(actualEntry => Promise.all([
+const doSymlinkEntry = async (name, entryPath, webTree, log) => {
+  try {
+    const actualEntry = await fsPromises.realpath(entryPath)
+    const [rel, stats] = await Promise.all([
       fsPromises.readlink(entryPath),
       fsPromises.stat(actualEntry)
-    ]))
-    .then(([rel, stats]) => {
-      const relURL = rel.split(path.sep).map(part => encodeURIComponent(part)).join('/')
-      const relRef = (stats.isDirectory()) ? `${relURL}/${indexName}` : relURL
-      return [
-        { entryType: 'link', href: `${webTree}/${relRef}`, title: name },
-        log.formattedEntry(name)
-      ]
-    })
-    .catch(breakageHandler('link', name, log))
+    ])
+    const relURL = rel.split(path.sep).map(part => encodeURIComponent(part)).join('/')
+    const relRef = (stats.isDirectory()) ? `${relURL}/${indexName}` : relURL
+    return [
+      { entryType: 'link', href: `${webTree}/${relRef}`, title: name },
+      log.formattedEntry(name)
+    ]
+  } catch (error) {
+    (breakageHandler('link', name, log))(error)
+  }
 }
 
 // eslint-disable-next-line max-params
@@ -257,7 +244,7 @@ const webNavProcessor = (webContext, current) => {
 }
 
 const dirProcessor = (srcRoot, dstRoot, webRoot) => {
-  const doDirEntry = (dirName, parents, siblings, log) => {
+  const doDirEntry = async (dirName, parents, siblings, log) => {
     const nextParents = parents.concat([dirName])
     const nextLog = log.deeper()
     const srcTree = joinedPath(srcRoot, nextParents)
@@ -266,83 +253,86 @@ const dirProcessor = (srcRoot, dstRoot, webRoot) => {
     const webTree = `${webAbove}/${encodeURIComponent(dirName)}`
     const navRefs = siblings.map(webNavProcessor(webAbove, dirName))
     const breadcrumbs = webBreadcrumbs(webRoot, parents)
-    return fsPromises.mkdir(dstTree, { mode: 0o755 })
-      .then(() => fsPromises.readdir(srcTree, { withFileTypes: true }))
-      .then(entries => {
-        const nextSiblings = entries.filter(entry => entry.isDirectory())
-          .map(dirEntry => dirEntry.name)
-        return entries
-          .map(tupleEntryProcessor(
-            srcTree, dstTree, webTree, nextParents, nextSiblings, nextLog, doDirEntry
-          ))
-      })
-      .then(dirList => Promise.all(dirList))
-      .then(tuples => {
-        const dirRefs = extractWebRefs(tuples)
-        const dirLogs = extractLogFrags(tuples)
-        const locals = { dirName, breadcrumbs, navRefs, dirRefs, ...baseOptions }
-        return Promise.all([
-          fsPromises.writeFile(
-            path.join(dstTree, indexName), subTreeIndex(locals), { mode: 0o644 }
-          ),
-          dirLogs
-        ])
-      })
-      .then(([, subTreeLog]) => [
+    const process = entries => {
+      const nextSiblings = entries.filter(entry => entry.isDirectory())
+        .map(dirEntry => dirEntry.name)
+      return entries
+        .map(tupleEntryProcessor(srcTree, dstTree, webTree, nextParents, nextSiblings, nextLog, doDirEntry))
+    }
+
+    try {
+      await fsPromises.mkdir(dstTree, { mode: 0o755 })
+      const entries = await fsPromises.readdir(srcTree, { withFileTypes: true })
+      const tuples = await Promise.all(process(entries))
+      const dirRefs = extractWebRefs(tuples)
+      const subTreeLog = extractLogFrags(tuples)
+      const locals = { dirName, breadcrumbs, navRefs, dirRefs, ...baseOptions }
+      await fsPromises.writeFile(path.join(dstTree, indexName), subTreeIndex(locals), { mode: 0o644 })
+      return [
         { entryType: 'dir', href: `${webTree}/${indexName}`, title: dirName },
         log.formattedDir(dirName, parents, siblings, subTreeLog)
-      ])
-      .catch(breakageHandler('dir', dirName, log))
+      ]
+    } catch (error) {
+      (breakageHandler('dir', dirName, log))(error)
+    }
   }
 
   return doDirEntry
 }
 
-const topLevelDir = (srcRoot, dstRoot, webRoot, log, processedDir) => {
-  return fsPromises.readdir(srcRoot, { withFileTypes: true })
-    .then(entries => {
-      const nextSiblings = entries.filter(entry => entry.isDirectory())
-        .map(dirEntry => dirEntry.name)
-      return entries
-        .map(tupleEntryProcessor(srcRoot, dstRoot, webRoot, [], nextSiblings, log, processedDir))
-    })
-    .then(dirList => Promise.all(dirList))
-    .then(tuples => {
-      const dirRefs = extractWebRefs(tuples)
-      const dirLogs = extractLogFrags(tuples)
-      const locals = { dirRefs, ...baseOptions }
-      return Promise.all([
-        fsPromises.writeFile(path.join(dstRoot, indexName), topLevelIndex(locals), { mode: 0o644 }),
-        log.formattedDir(srcRoot, [], [], dirLogs)
-      ])
-    })
-    .catch(breakageHandler('dir', srcRoot, log))
+const topLevelDir = async (srcRoot, dstRoot, webRoot, log, processedDir) => {
+  const process = entries => {
+    const nextSiblings = entries.filter(entry => entry.isDirectory())
+      .map(dirEntry => dirEntry.name)
+    return entries
+      .map(tupleEntryProcessor(srcRoot, dstRoot, webRoot, [], nextSiblings, log, processedDir))
+  }
+
+  try {
+    const entries = await fsPromises.readdir(srcRoot, { withFileTypes: true })
+    const tuples = await Promise.all(process(entries))
+    const dirRefs = extractWebRefs(tuples)
+    const dirLogs = extractLogFrags(tuples)
+    const locals = { dirRefs, ...baseOptions }
+    await fsPromises.writeFile(path.join(dstRoot, indexName), topLevelIndex(locals), { mode: 0o644 })
+    return log.formattedDir(srcRoot, [], [], dirLogs)
+  } catch (error) {
+    (breakageHandler('dir', srcRoot, log))(error)
+  }
 }
 
-const placedWebAssets = (assetRoot, dst, log) => {
+const placedWebAssets = async (assetRoot, dst, log) => {
   const scriptDir = joinedPath(dst, webScripts)
   const imageDir = joinedPath(dst, webImages)
   const styleDir = joinedPath(dst, webStyles)
-  return patternCopiedFiles(assetRoot, dst, /\.ico$/, log)
-    .then(() => Promise.all(
+  try {
+    await patternCopiedFiles(assetRoot, dst, /\.ico$/, log)
+    await Promise.all(
       [scriptDir, imageDir, styleDir]
-        .map(dir => fsPromises.mkdir(dir, { mode: 0o755, recursive: true }))
-    ))
-    .then(() => Promise.all([
+        .map(dir => fsPromises.mkdir(dir, { mode: 493, recursive: true }))
+    )
+    return Promise.all([
       patternCopiedFiles(assetRoot, scriptDir, /\.js$/, log),
       patternCopiedFiles(assetRoot, imageDir, /\.((png)|(jpg)|(svg))$/, log),
       patternCopiedFiles(assetRoot, styleDir, /\.css$/, log)
-    ]))
-    .catch(error => log.message(error))
+    ])
+  } catch (error) {
+    log.message(error)
+  }
 }
 
 const processedDirTree = dirProcessor(source, destination, webRootURL)
 
-purgedTree(destination, topLog)
-  .then(() => fsPromises.mkdir(destination, { mode: 0o755 }))
-  .then(() => Promise.all([
-    placedWebAssets(assets, destination, topLog),
-    topLevelDir(source, destination, webRootURL, topLog.deeper(), processedDirTree)
-      .then(([, dirLog]) => topLog.message(dirLog))
-  ]))
-  .catch(error => topLog.message(error))
+const topRunner = async (destination, topLog) => {
+  try {
+    await fsPromises.rm(destination, { recursive: true, force: true })
+    await fsPromises.mkdir(destination, { mode: 0o755 })
+    await placedWebAssets(assets, destination, topLog)
+    const dirLog = await topLevelDir(source, destination, webRootURL, topLog.deeper(), processedDirTree)
+    topLog.message(dirLog)
+  } catch (error) {
+    topLog.message(error)
+  }
+}
+
+export default await topRunner(destination, topLog)
