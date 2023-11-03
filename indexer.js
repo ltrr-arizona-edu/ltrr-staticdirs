@@ -9,6 +9,7 @@ const source = process.env.STATICDIRS_SOURCE || path.resolve()
 const destination = process.env.STATICDIRS_DESTINATION || path.resolve('build')
 const webSiteName = process.env.STATICDIRS_SITENAME || 'Home'
 const indexName = process.env.STATICDIRS_INDEXNAME || 'index.html'
+const altIndexName = process.env.STATICDIRS_ALTINDEXNAME || 'staticdirs_index.html'
 const webRootURL = process.env.STATICDIRS_WEBROOT || url.pathToFileURL(destination)
 const webExtraRoot = ['staticdirs']
 const webScripts = webExtraRoot.concat(['scripts'])
@@ -98,7 +99,7 @@ const patternCopiedFiles = async (srcDir, dstDir, pattern, log) => {
       .map(fileEntry => {
         const src = path.join(srcDir, fileEntry.name)
         const dst = path.join(dstDir, fileEntry.name)
-        return fsPromises.copyFile(src, dst)
+        return fsPromises.copyFile(src, dst, fsPromises.constants.COPYFILE_EXCL)
       })
     return Promise.all(copyList)
   } catch (error) {
@@ -132,14 +133,19 @@ const breakageHandler = (entry, name, log) => {
   }
 }
 
-const doIndexEntry = log => {
+const doIndexEntry = async (entry, srcTree, dstTree, log) => {
+  const { name } = entry
   try {
+    if (entry.isFile()) {
+      await fsPromises.symlink(path.join(srcTree, name), path.join(dstTree, name))
+    }
+
     return [
       { entryType: 'index' },
-      log.formattedEntry(indexName)
+      log.formattedEntry(name)
     ]
   } catch (error) {
-    (breakageHandler('index', indexName, log))(error)
+    (breakageHandler('file', name, log))(error)
   }
 }
 
@@ -178,7 +184,7 @@ const doSymlinkEntry = async (name, entryPath, webTree, log) => {
 const tupleEntryProcessor = (srcTree, dstTree, webTree, parents, siblings, log, doDirEntry) => {
   return entry => {
     if (entry.name === indexName) {
-      return doIndexEntry(log)
+      return doIndexEntry(entry, srcTree, dstTree, log)
     }
 
     const entryPath = path.join(srcTree, entry.name)
@@ -243,6 +249,22 @@ const webNavProcessor = (webContext, current) => {
   }
 }
 
+const writeIndex = async (dstTree, filledTemplate) => {
+  let fhandle
+  try {
+    fhandle = await fsPromises.open(path.join(dstTree, indexName), 'wx', 0o644)
+    await fhandle.writeFile(filledTemplate)
+  } catch (error) {
+    if (error.code === 'EEXIST') {
+      await fsPromises.writeFile(path.join(dstTree, altIndexName), filledTemplate, { mode: 0o644 })
+    } else {
+      throw error
+    }
+  } finally {
+    await fhandle?.close()
+  }
+}
+
 const dirProcessor = (srcRoot, dstRoot, webRoot) => {
   const doDirEntry = async (dirName, parents, siblings, log) => {
     const nextParents = parents.concat([dirName])
@@ -267,7 +289,7 @@ const dirProcessor = (srcRoot, dstRoot, webRoot) => {
       const dirRefs = extractWebRefs(tuples)
       const subTreeLog = extractLogFrags(tuples)
       const locals = { dirName, breadcrumbs, navRefs, dirRefs, ...baseOptions }
-      await fsPromises.writeFile(path.join(dstTree, indexName), subTreeIndex(locals), { mode: 0o644 })
+      await writeIndex(dstTree, subTreeIndex(locals))
       return [
         { entryType: 'dir', href: `${webTree}/${indexName}`, title: dirName },
         log.formattedDir(dirName, parents, siblings, subTreeLog)
@@ -294,7 +316,7 @@ const topLevelDir = async (srcRoot, dstRoot, webRoot, log, processedDir) => {
     const dirRefs = extractWebRefs(tuples)
     const dirLogs = extractLogFrags(tuples)
     const locals = { dirRefs, ...baseOptions }
-    await fsPromises.writeFile(path.join(dstRoot, indexName), topLevelIndex(locals), { mode: 0o644 })
+    await writeIndex(dstRoot, topLevelIndex(locals))
     return log.formattedDir(srcRoot, [], [], dirLogs)
   } catch (error) {
     (breakageHandler('dir', srcRoot, log))(error)
