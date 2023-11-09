@@ -4,6 +4,7 @@ html
     include commonhead.pug
     title #{siteName}
   body
+    include arizonabanner.pug
     div#main(role='main')
       .container
         .row
@@ -11,4 +12,5 @@ html
             .page-header
               h1 #{siteName}
             include dirlist.pug
-    include commonfoot.pug
+      include commonfooter.pug
+    include commonbodyend.pug

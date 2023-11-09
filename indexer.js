@@ -8,6 +8,8 @@ import pug from 'pug'
 const source = process.env.STATICDIRS_SOURCE || path.resolve()
 const destination = process.env.STATICDIRS_DESTINATION || path.resolve('build')
 const webSiteName = process.env.STATICDIRS_SITENAME || 'Home'
+const webDeptName = process.env.STATICDIRS_DEPTNAME || ''
+const webDeptURL = process.env.STATICDIRS_DEPTURL || ''
 const indexName = process.env.STATICDIRS_INDEXNAME || 'index.html'
 const altIndexName = process.env.STATICDIRS_ALTINDEXNAME || 'staticdirs_index.html'
 const webRootURL = process.env.STATICDIRS_WEBROOT || url.pathToFileURL(destination)
@@ -20,7 +22,10 @@ const assets = path.resolve(webAssetDir)
 
 const baseOptions = {
   root: webRootURL,
+  index: indexName,
   siteName: webSiteName,
+  deptName: webDeptName,
+  deptURL: webDeptURL,
   scripts: [webRootURL].concat(webScripts).join('/'),
   images: [webRootURL].concat(webImages).join('/'),
   styles: [webRootURL].concat(webStyles).join('/'),

@@ -1,12 +1,10 @@
 .container
   .row
-    div.col-xs-12.bg-sky(aria-label='breadcrumb')
-      .item-list
-        ol.breadcrumb
-          li
-            a(href=`${root}/`)
-              img(width=widthFileIcon, height=heightFileIcon, src=`${images}/home-solid-fontawesome.svg`, alt='home')
-          each crumb in breadcrumbs
-            li
-              a(href=crumb.href) #{crumb.title}
-          li.active #{dirName}    
+    nav.col-12(aria-label='Breadcrumb')
+      ol.breadcrumb
+        li.breadcrumb-item.breadcrumb-item-home
+          a(href=`${root}/${index}`) Home
+        each crumb in breadcrumbs
+          li.breadcrumb-item
+            a(href=crumb.href) #{crumb.title}
+        li.breadcrumb-item.active(aria-current='page') #{dirName}    

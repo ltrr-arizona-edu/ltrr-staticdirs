@@ -1,10 +1,6 @@
-ul.media-list
+nav.nav.flex-column.list-group(role='menu')
   each ref in navRefs
-    li.media
-      .media-left
-        if ref.active
-          img(class='media-object', width=widthFileIcon, height=heightFileIcon, src=`${images}/folder-open-solid-fontawesome.svg`, alt='current dir')
-        else
-          a(href=ref.href)
-            img(class='media-object', width=widthFileIcon, height=heightFileIcon, src=`${images}/folder-solid-fontawesome.svg`, alt='dir')
-      .media-body #{ref.title}
+    if ref.active
+      span.nav-link.is-active.list-group-item(role='menuitem', aria-disabled='true') <span class="material-icons-sharp">folder_open</span> #{ref.title}
+    else
+      a.nav-link.list-group-item(href=ref.href, role='menuitem') <span class="material-icons-sharp">folder</span> #{ref.title}

@@ -1,19 +1,9 @@
-ul.media-list
+nav.nav.flex-column(role='menu')
   each ref in dirRefs
-    li.media
-      case ref.entryType
-        when 'file'
-          .media-left
-            a(href=ref.href)
-              img(class='media-object', width=widthFileIcon, height=heightFileIcon, src=`${images}/file-solid-fontawesome.svg`, alt='file')
-          .media-body #{ref.title}
-        when 'link'
-          .media-left
-            a(href=ref.href)
-              img(class='media-object', width=widthFileIcon, height=heightFileIcon, src=`${images}/link-solid-fontawesome.svg`, alt='link')
-          .media-body #{ref.title}
-        when 'dir'
-          .media-left
-            a(href=ref.href)
-              img(class='media-object', width=widthFileIcon, height=heightFileIcon, src=`${images}/folder-solid-fontawesome.svg`, alt='dir')
-          .media-body #{ref.title}
+    case ref.entryType
+      when 'file'
+        a.nav-link(href=ref.href, role='menuitem') <span class="material-icons-sharp">description</span> #{ref.title}
+      when 'link'
+        a.nav-link(href=ref.href, role='menuitem') <span class="material-icons-sharp">link</span> #{ref.title}
+      when 'dir'
+        a.nav-link(href=ref.href, role='menuitem') <span class="material-icons-sharp">folder</span> #{ref.title}

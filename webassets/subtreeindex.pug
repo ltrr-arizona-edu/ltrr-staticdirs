@@ -4,14 +4,16 @@ html
     include commonhead.pug
     title #{dirName}
   body
+    include arizonabanner.pug
     div#main(role='main')
       include breadcrumbbar.pug
       .container
         .row
-          #content.col-md-9.col-md-push-3
+          #content.col-md-9.order-2
             .page-header
               h1 #{dirName}
             include dirlist.pug
-          aside.col-md-3.col-md-pull-9.bg-cool-gray(role='navigation')
+          aside.col-md-3.order-1(role='navigation')
             include siblingnav.pug
-    include commonfoot.pug
+      include commonfooter.pug
+    include commonbodyend.pug
