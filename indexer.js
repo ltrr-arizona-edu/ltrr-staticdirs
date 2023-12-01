@@ -12,13 +12,12 @@ const webDeptName = process.env.STATICDIRS_DEPTNAME || ''
 const webDeptURL = process.env.STATICDIRS_DEPTURL || ''
 const indexName = process.env.STATICDIRS_INDEXNAME || 'index.html'
 const altIndexName = process.env.STATICDIRS_ALTINDEXNAME || 'staticdirs_index.html'
+const webAssetsDir = process.env.STATICDIRS_WEBASSETSDIR || url.fileURLToPath(new URL('webassets/', import.meta.url))
 const webRootURL = process.env.STATICDIRS_WEBROOT || url.pathToFileURL(destination)
 const webExtraRoot = ['staticdirs']
 const webScripts = webExtraRoot.concat(['scripts'])
 const webImages = webExtraRoot.concat(['images'])
 const webStyles = webExtraRoot.concat(['styles'])
-const webAssetDir = 'webassets'
-const assets = path.resolve(webAssetDir)
 
 const baseOptions = {
   root: webRootURL,
@@ -94,8 +93,8 @@ const errorExit = message => {
   throw new Error(message)
 }
 
-const subTreeIndex = pug.compileFile(path.join(webAssetDir, 'subtreeindex.pug'), { basedir: assets })
-const topLevelIndex = pug.compileFile(path.join(webAssetDir, 'toplevelindex.pug'), { basedir: assets })
+const subTreeIndex = pug.compileFile(path.join(webAssetsDir, 'subtreeindex.pug'), { basedir: webAssetsDir })
+const topLevelIndex = pug.compileFile(path.join(webAssetsDir, 'toplevelindex.pug'), { basedir: webAssetsDir })
 
 const patternCopiedFiles = async (srcDir, dstDir, pattern, log) => {
   try {
@@ -354,7 +353,7 @@ const topRunner = async (destination, topLog) => {
   try {
     await fsPromises.rm(destination, { recursive: true, force: true })
     await fsPromises.mkdir(destination, { mode: 0o755 })
-    await placedWebAssets(assets, destination, topLog)
+    await placedWebAssets(webAssetsDir, destination, topLog)
     const dirLog = await topLevelDir(source, destination, webRootURL, topLog.deeper(), processedDirTree)
     topLog.message(dirLog)
   } catch (error) {
