@@ -27,9 +27,7 @@ const baseOptions = {
   deptURL: webDeptURL,
   scripts: [webRootURL].concat(webScripts).join('/'),
   images: [webRootURL].concat(webImages).join('/'),
-  styles: [webRootURL].concat(webStyles).join('/'),
-  widthFileIcon: '32px',
-  heightFileIcon: '32px'
+  styles: [webRootURL].concat(webStyles).join('/')
 }
 
 const verboseLogger = {
